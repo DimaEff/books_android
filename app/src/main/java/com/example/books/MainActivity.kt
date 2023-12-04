@@ -24,6 +24,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -37,10 +38,13 @@ import androidx.core.text.isDigitsOnly
 import com.example.books.data.remote.BooksService
 import com.example.books.data.remote.dto.BookDto
 import com.example.books.data.remote.dto.BooksWithCountDto
+import com.example.books.data.remote.dto.CreateBookDto
 import com.example.books.data.remote.dto.PaginationDto
 import com.example.books.ui.theme.BooksTheme
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
@@ -52,28 +56,50 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         setContent {
-            var booksState by remember {
-                mutableStateOf<BooksWithCountDto?>(null)
-            }
-            suspend fun fetchBooks() {
-                val res = withContext(Dispatchers.IO) {
-                    booksService.getAllBooks(PaginationDto()) // Make a network request to fetch the books
-                }
-                booksState = res
-            }
+            val (showCreateBookDialog, setShowCreateBookDialog) = remember { mutableStateOf(false) }
+
+            val (limit, setLimit) = remember { mutableIntStateOf(20) }
+            val (page, setPage) = remember { mutableIntStateOf(0) }
+
+            val (books, setBooks) = remember { mutableStateOf<BooksWithCountDto?>(null) }
+            suspend fun handleFetchBooks() = setBooks(booksService.getAllBooks(PaginationDto(limit, page)))
+            LaunchedEffect(limit, page, block = { handleFetchBooks() })
+
             BooksTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    if (booksState != null) {
-                        BooksList(booksState!!.rows)
-                    } else {
-                        Text(modifier = Modifier.fillMaxWidth(), text = "There are no books")
-                        Button(onClick = { GlobalScope.launch { fetchBooks() } }) {
-                            Text(text = "Fetch")
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            IconButton(onClick = { setShowCreateBookDialog(true) }) {
+                                Icon(Icons.Filled.Edit, contentDescription = "Edit")
+                            }
+                        }
+                        if (books != null) {
+                            BooksList(books.rows)
+                        } else {
+                            Text(modifier = Modifier.fillMaxWidth(), text = "There are no books")
                         }
                     }
+
+                    BookDialog(
+                        showDialog = showCreateBookDialog,
+                        onDismiss = { setShowCreateBookDialog(false) },
+                        onSave = { title, author, yearOfPublication ->
+                            booksService.createBook(
+                                CreateBookDto(title, author, yearOfPublication)
+                            )
+                            handleFetchBooks()
+                            setShowCreateBookDialog(false)
+                        }
+                    )
                 }
             }
         }
@@ -83,7 +109,6 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun BooksList(books: List<BookDto>) {
     LazyColumn(
-        contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         items(books.size) {
@@ -152,8 +177,8 @@ fun isYearOfPublicationValid(yearOfPublication: String) =
 fun BookDialog(
     showDialog: Boolean,
     onDismiss: () -> Unit,
-    onSave: (String, String, Int) -> Unit,
-    book: BookDto?
+    onSave: suspend (String, String, Int) -> Unit,
+    book: BookDto? = null
 ) {
     var title by remember { mutableStateOf(book?.title ?: "") }
     var author by remember { mutableStateOf(book?.author ?: "") }
@@ -178,7 +203,9 @@ fun BookDialog(
                 Button(
                     onClick = {
                         if (!isErrorForm) {
-                            onSave(title, author, yearOfPublication)
+                            CoroutineScope(Dispatchers.IO).launch {
+                                onSave(title, author, yearOfPublication)
+                            }
                         }
                     },
                     enabled = !isErrorForm
