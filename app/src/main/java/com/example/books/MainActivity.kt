@@ -29,6 +29,7 @@ import com.example.books.data.remote.dto.PaginationDto
 import com.example.books.ui.theme.BookDialog
 import com.example.books.ui.theme.BooksList
 import com.example.books.ui.theme.BooksTheme
+import com.example.books.ui.theme.PaginationControl
 
 class MainActivity : ComponentActivity() {
     private val booksService = BooksService.create()
@@ -58,21 +59,21 @@ class MainActivity : ComponentActivity() {
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.End
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-//                            if (books != null) PaginationControl(
-//                                limit,
-//                                setLimit,
-//                                books.count,
-//                                page,
-//                                setPage
-//                            )
+                            if (books != null) PaginationControl(
+                                limit,
+                                setLimit,
+                                books.count,
+                                page,
+                                setPage
+                            )
                             IconButton(onClick = { setShowCreateBookDialog(true) }) {
                                 Icon(Icons.Filled.Edit, contentDescription = "Edit")
                             }
                         }
                         if (books != null) {
-                            BooksList(books, booksService, ::handleFetchBooks)
+                            BooksList(books.rows, booksService, ::handleFetchBooks)
                         } else {
                             Text(modifier = Modifier.fillMaxWidth(), text = "There are no books")
                         }

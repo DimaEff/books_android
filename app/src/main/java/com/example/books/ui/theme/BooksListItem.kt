@@ -1,5 +1,6 @@
 package com.example.books.ui.theme
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -20,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.books.data.remote.BooksService
 import com.example.books.data.remote.dto.BookDto
@@ -28,21 +30,30 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun BooksListItem(book: BookDto, booksService: BooksService, handleFetchBooks: suspend () -> Unit) {
     val (showEditBookDialog, setShowEditBookDialog) = remember { mutableStateOf(false) }
     val (showDeleteBookDialog, setShowDeleteBookDialog) = remember { mutableStateOf(false) }
 
+    val context = LocalContext.current
+
     suspend fun handleEditSave(title: String, author: String, yearOfPublication: Int) {
         booksService.updateBook(book.id, UpdateBookDto(title, author, yearOfPublication))
         handleFetchBooks()
         setShowEditBookDialog(false)
+        withContext(Dispatchers.Main) {
+            Toast.makeText(context, "The book has been saved", Toast.LENGTH_SHORT).show()
+        }
     }
 
     suspend fun handleDeleteBook(bookId: Int) {
         booksService.deleteBook(bookId)
         handleFetchBooks()
+        withContext(Dispatchers.Main) {
+            Toast.makeText(context, "The book has been deleted", Toast.LENGTH_SHORT).show()
+        }
     }
 
     Card(

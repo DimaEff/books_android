@@ -1,5 +1,6 @@
 package com.example.books.ui.theme
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
@@ -12,12 +13,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.text.isDigitsOnly
 import com.example.books.data.remote.dto.BookDto
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
 
 const val MIN_STRING_LENGTH = 3
@@ -40,7 +43,6 @@ fun BookDialog(
     var author by remember { mutableStateOf(book?.author ?: "") }
     var yearOfPublication by remember { mutableIntStateOf(book?.yearOfPublication ?: 0) }
 
-
     val isTitleError = remember(title) { !isTitleValid(title) }
     val isAuthorError = remember(author) { !isAuthorValid(author) }
     val isYearOfPublicationError =
@@ -48,6 +50,8 @@ fun BookDialog(
     val isErrorForm by remember(
         isTitleError, isAuthorError, isYearOfPublicationError
     ) { mutableStateOf(isTitleError || isAuthorError || isYearOfPublicationError) }
+
+    val context = LocalContext.current
 
     if (showDialog) {
         AlertDialog(onDismissRequest = onDismiss,
@@ -58,6 +62,9 @@ fun BookDialog(
                         if (!isErrorForm) {
                             CoroutineScope(Dispatchers.IO).launch {
                                 onSave(title, author, yearOfPublication)
+                                withContext(Dispatchers.Main) {
+                                    Toast.makeText(context, "The book has been added", Toast.LENGTH_SHORT).show()
+                                }
                             }
                         }
                     }, enabled = !isErrorForm
