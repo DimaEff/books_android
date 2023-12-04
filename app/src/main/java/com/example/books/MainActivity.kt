@@ -40,6 +40,7 @@ import com.example.books.data.remote.dto.BookDto
 import com.example.books.data.remote.dto.BooksWithCountDto
 import com.example.books.data.remote.dto.CreateBookDto
 import com.example.books.data.remote.dto.PaginationDto
+import com.example.books.data.remote.dto.UpdateBookDto
 import com.example.books.ui.theme.BooksTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -58,11 +59,12 @@ class MainActivity : ComponentActivity() {
         setContent {
             val (showCreateBookDialog, setShowCreateBookDialog) = remember { mutableStateOf(false) }
 
-            val (limit, setLimit) = remember { mutableIntStateOf(20) }
+            val (limit, setLimit) = remember { mutableIntStateOf(50) }
             val (page, setPage) = remember { mutableIntStateOf(0) }
 
             val (books, setBooks) = remember { mutableStateOf<BooksWithCountDto?>(null) }
-            suspend fun handleFetchBooks() = setBooks(booksService.getAllBooks(PaginationDto(limit, page)))
+            suspend fun handleFetchBooks() =
+                setBooks(booksService.getAllBooks(PaginationDto(limit, page)))
             LaunchedEffect(limit, page, block = { handleFetchBooks() })
 
             BooksTheme {
@@ -83,7 +85,7 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                         if (books != null) {
-                            BooksList(books.rows)
+                            BooksList(books.rows, booksService, ::handleFetchBooks)
                         } else {
                             Text(modifier = Modifier.fillMaxWidth(), text = "There are no books")
                         }
@@ -107,22 +109,27 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun BooksList(books: List<BookDto>) {
+fun BooksList(
+    books: List<BookDto>,
+    booksService: BooksService,
+    handleFetchBooks: suspend () -> Unit
+) {
     LazyColumn(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         items(books.size) {
-            BooksListItem(book = books[it])
+            BooksListItem(book = books[it], booksService = booksService, handleFetchBooks)
         }
     }
 }
 
 @Composable
-fun BooksListItem(book: BookDto) {
+fun BooksListItem(book: BookDto, booksService: BooksService, handleFetchBooks: suspend () -> Unit) {
     val (showDialog, setShowDialog) = remember { mutableStateOf(false) }
 
-    fun handleEditSave(title: String, author: String, yearOfPublication: Int) {
-        // ...
+    suspend fun handleEditSave(title: String, author: String, yearOfPublication: Int) {
+        booksService.updateBook(book.id, UpdateBookDto(title, author, yearOfPublication))
+        handleFetchBooks()
         setShowDialog(false)
     }
 
