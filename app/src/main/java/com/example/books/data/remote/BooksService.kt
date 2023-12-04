@@ -16,7 +16,7 @@ interface BooksService {
     suspend fun getAllBooks(pagination: PaginationDto): BooksWithCountDto?
     suspend fun createBook(createBookDto: CreateBookDto): BookDto?
     suspend fun updateBook(bookId: Int, updateBookDto: UpdateBookDto): BookDto?
-    suspend fun deleteBook(bookId: Int): Unit
+    suspend fun deleteBook(bookId: Int): Unit?
 
     companion object {
         fun create() : BooksService {

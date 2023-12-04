@@ -8,6 +8,7 @@ import com.example.books.data.remote.dto.UpdateBookDto
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.ResponseException
+import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.parameter
 import io.ktor.client.request.post
@@ -49,9 +50,10 @@ class BooksServiceImpl(
         }?.body<BookDto>()
 
     override suspend
-    fun deleteBook(bookId: Int) {
-        TODO("Not yet implemented")
-    }
+    fun deleteBook(bookId: Int): Unit? =
+        handleRequest {
+            httpClient.delete("${HttpRoutes.BOOKS}/$bookId")
+        }?.body<Unit>()
 
     private suspend fun handleRequest(requestFunc: suspend () -> HttpResponse): HttpResponse? =
         try {

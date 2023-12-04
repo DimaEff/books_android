@@ -5,7 +5,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,6 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -23,12 +23,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -44,10 +44,8 @@ import com.example.books.data.remote.dto.UpdateBookDto
 import com.example.books.ui.theme.BooksTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.time.LocalDate
 
 class MainActivity : ComponentActivity() {
@@ -69,8 +67,7 @@ class MainActivity : ComponentActivity() {
 
             BooksTheme {
                 Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
+                    modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background
                 ) {
                     Column(
                         modifier = Modifier.padding(16.dp),
@@ -91,8 +88,7 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    BookDialog(
-                        showDialog = showCreateBookDialog,
+                    BookDialog(showDialog = showCreateBookDialog,
                         onDismiss = { setShowCreateBookDialog(false) },
                         onSave = { title, author, yearOfPublication ->
                             booksService.createBook(
@@ -100,8 +96,7 @@ class MainActivity : ComponentActivity() {
                             )
                             handleFetchBooks()
                             setShowCreateBookDialog(false)
-                        }
-                    )
+                        })
                 }
             }
         }
@@ -110,9 +105,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun BooksList(
-    books: List<BookDto>,
-    booksService: BooksService,
-    handleFetchBooks: suspend () -> Unit
+    books: List<BookDto>, booksService: BooksService, handleFetchBooks: suspend () -> Unit
 ) {
     LazyColumn(
         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -125,12 +118,18 @@ fun BooksList(
 
 @Composable
 fun BooksListItem(book: BookDto, booksService: BooksService, handleFetchBooks: suspend () -> Unit) {
-    val (showDialog, setShowDialog) = remember { mutableStateOf(false) }
+    val (showEditBookDialog, setShowEditBookDialog) = remember { mutableStateOf(false) }
+    val (showDeleteBookDialog, setShowDeleteBookDialog) = remember { mutableStateOf(false) }
 
     suspend fun handleEditSave(title: String, author: String, yearOfPublication: Int) {
         booksService.updateBook(book.id, UpdateBookDto(title, author, yearOfPublication))
         handleFetchBooks()
-        setShowDialog(false)
+        setShowEditBookDialog(false)
+    }
+
+    suspend fun handleDeleteBook(bookId: Int) {
+        booksService.deleteBook(bookId)
+        handleFetchBooks()
     }
 
     Card(
@@ -157,17 +156,48 @@ fun BooksListItem(book: BookDto, booksService: BooksService, handleFetchBooks: s
                     style = MaterialTheme.typography.bodySmall
                 )
             }
-            IconButton(onClick = { setShowDialog(true) }) {
-                Icon(Icons.Filled.Edit, contentDescription = "Edit")
+            Row {
+                IconButton(onClick = { setShowEditBookDialog(true) }) {
+                    Icon(Icons.Filled.Edit, contentDescription = "Edit")
+                }
+                IconButton(onClick = {
+                    setShowDeleteBookDialog(true)
+                }) {
+                    Icon(Icons.Filled.Delete, contentDescription = "Delete")
+                }
             }
         }
     }
 
     BookDialog(
-        showDialog = showDialog,
-        onDismiss = { setShowDialog(false) },
+        showDialog = showEditBookDialog,
+        onDismiss = { setShowEditBookDialog(false) },
         onSave = ::handleEditSave,
         book
+    )
+
+    if (showDeleteBookDialog) AlertDialog(
+        title = { Text(text = "Do you want to delete a book?") },
+        onDismissRequest = { setShowDeleteBookDialog(false) },
+        dismissButton = {
+            TextButton(onClick = {
+                setShowDeleteBookDialog(false)
+            }) {
+                Text("Cancel")
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                CoroutineScope(Dispatchers.IO).launch {
+                    coroutineScope {
+                        handleDeleteBook(book.id)
+                    }
+                }
+                setShowDeleteBookDialog(false)
+            }) {
+                Text("Delete")
+            }
+        },
     )
 }
 
@@ -197,14 +227,11 @@ fun BookDialog(
     val isYearOfPublicationError =
         remember(yearOfPublication) { !isYearOfPublicationValid(yearOfPublication.toString()) }
     val isErrorForm by remember(
-        isTitleError,
-        isAuthorError,
-        isYearOfPublicationError
+        isTitleError, isAuthorError, isYearOfPublicationError
     ) { mutableStateOf(isTitleError || isAuthorError || isYearOfPublicationError) }
 
     if (showDialog) {
-        AlertDialog(
-            onDismissRequest = onDismiss,
+        AlertDialog(onDismissRequest = onDismiss,
             title = { Text("Add New Book") },
             confirmButton = {
                 Button(
@@ -214,8 +241,7 @@ fun BookDialog(
                                 onSave(title, author, yearOfPublication)
                             }
                         }
-                    },
-                    enabled = !isErrorForm
+                    }, enabled = !isErrorForm
                 ) {
                     Text("Save")
                 }
@@ -257,8 +283,7 @@ fun BookDialog(
                         errorMessage = "Year of publication must be a number between $MIN_PUBLISH_YEAR and the current year"
                     )
                 }
-            }
-        )
+            })
     }
 }
 
@@ -277,8 +302,6 @@ fun OutlineTextFieldWithErrorMessage(
         isError = isError,
     )
     if (isError) Text(
-        text = errorMessage,
-        color = Color.Red,
-        style = MaterialTheme.typography.bodySmall
+        text = errorMessage, color = Color.Red, style = MaterialTheme.typography.bodySmall
     )
 }
