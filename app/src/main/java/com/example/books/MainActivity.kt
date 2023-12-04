@@ -27,89 +27,61 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.core.text.isDigitsOnly
+import com.example.books.data.remote.BooksService
+import com.example.books.data.remote.dto.BookDto
+import com.example.books.data.remote.dto.BooksWithCountDto
+import com.example.books.data.remote.dto.PaginationDto
 import com.example.books.ui.theme.BooksTheme
-import fuel.Fuel
-import fuel.FuelBuilder
-import fuel.HttpResponse
-import fuel.post
-import fuel.request
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.Serializable
 import java.time.LocalDate
 
 class MainActivity : ComponentActivity() {
+    private val booksService = BooksService.create()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         setContent {
+            var booksState by remember {
+                mutableStateOf<BooksWithCountDto?>(null)
+            }
+            suspend fun fetchBooks() {
+                val res = withContext(Dispatchers.IO) {
+                    booksService.getAllBooks(PaginationDto()) // Make a network request to fetch the books
+                }
+                booksState = res
+            }
             BooksTheme {
-                // A surface container using the 'background' color from the theme
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    BooksList(listOfBooks)
+                    if (booksState != null) {
+                        BooksList(booksState!!.rows)
+                    } else {
+                        Text(modifier = Modifier.fillMaxWidth(), text = "There are no books")
+                        Button(onClick = { GlobalScope.launch { fetchBooks() } }) {
+                            Text(text = "Fetch")
+                        }
+                    }
                 }
             }
         }
     }
 }
 
-@Serializable
-data class CreateBookDto(
-    val title: String,
-    val author: String,
-    val yearOfPublication: Int
-)
-
-@Serializable
-data class UpdateBookDto(
-    val title: String? = null,
-    val author: String? = null,
-    val yearOfPublication: Int? = null
-)
-
-data class Book(
-    val id: Int,
-    val title: String,
-    val author: String,
-    val yearOfPublication: Int
-)
-
-val listOfBooks = listOf(
-    Book(1, "Sample Book 1", "Sample Author 1", 2020),
-    Book(1, "Sample Book 2", "Sample Author 2", 2019),
-    Book(1, "Sample Book 3", "Sample Author 3", 2018),
-    Book(1, "Sample Book 4", "Sample Author 4", 2017),
-    Book(1, "Sample Book 5", "Sample Author 5", 2016),
-    Book(1, "Sample Book 6", "Sample Author 6", 2015),
-    Book(1, "Sample Book 7", "Sample Author 7", 2014),
-    Book(1, "Sample Book 8", "Sample Author 8", 2013),
-    Book(1, "Sample Book 9", "Sample Author 9", 2012),
-    Book(1, "Sample Book 10", "Sample Author 10", 2011),
-    Book(1, "Sample Book 1", "Sample Author 1", 2020),
-    Book(1, "Sample Book 2", "Sample Author 2", 2019),
-    Book(1, "Sample Book 3", "Sample Author 3", 2018),
-    Book(1, "Sample Book 4", "Sample Author 4", 2017),
-    Book(1, "Sample Book 5", "Sample Author 5", 2016),
-    Book(1, "Sample Book 6", "Sample Author 6", 2015),
-    Book(1, "Sample Book 7", "Sample Author 7", 2014),
-    Book(1, "Sample Book 8", "Sample Author 8", 2013),
-    Book(1, "Sample Book 9", "Sample Author 9", 2012),
-)
-
-
 @Composable
-fun BooksList(books: List<Book>) {
+fun BooksList(books: List<BookDto>) {
     LazyColumn(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -121,7 +93,7 @@ fun BooksList(books: List<Book>) {
 }
 
 @Composable
-fun BooksListItem(book: Book) {
+fun BooksListItem(book: BookDto) {
     val (showDialog, setShowDialog) = remember { mutableStateOf(false) }
 
     fun handleEditSave(title: String, author: String, yearOfPublication: Int) {
@@ -176,102 +148,12 @@ fun isAuthorValid(author: String) = author.length in MIN_STRING_LENGTH..MIDDLE_S
 fun isYearOfPublicationValid(yearOfPublication: String) =
     yearOfPublication.isDigitsOnly() && yearOfPublication.toInt() in MIN_PUBLISH_YEAR..LocalDate.now().year
 
-class BooksApi {
-    private val baseUrl = "http://localhost:3000/books"
-
-    private suspend fun performRequest(url: String, method: String, headers: Map<String, String>, body: String) {
-        val result = withContext(Dispatchers.IO) {
-            Fuel.request(method, url)
-                .header(headers)
-                .body(body)
-                .response()
-        }
-
-        withContext(Dispatchers.Main) {
-            when (result) {
-                is Result.Success -> {
-                    val (data, _) = result
-                    // Handle the successful result data here
-                }
-                is Result.Failure -> {
-                    val ex = result.getException()
-                    // Handle the failure here
-                }
-            }
-        }
-    }
-
-    suspend fun createBook(bookJson: String) {
-        val url = "$baseUrl"
-        val method = "POST"
-        val headers = mapOf("Content-Type" to "application/json")
-        performRequest(url, method, headers, bookJson)
-    }
-
-    suspend fun updateBook(bookId: Int, bookJson: String) {
-        val url = "$baseUrl/$bookId"
-        val method = "PUT"
-        val headers = mapOf("Content-Type" to "application/json")
-        performRequest(url, method, headers, bookJson)
-    }
-}
-
-fun createBook(bookJson: String) {
-    val url = "http://localhost:3000/books"
-    val scope = CoroutineScope(Dispatchers.IO)
-    scope.launch(Dispatchers.IO) {
-        val result = Fuel.post(
-            url = url,
-            headers = mapOf("Content-Type" to "application/json"),
-            body = bookJson
-        )
-
-        withContext(Dispatchers.Main) {
-            when (result.statusCode) {
-                in 200..299 -> {
-                    val data = result.body
-                    // Handle the successful result data here
-                }
-
-                else -> {
-
-                }
-            }
-        }
-    }
-}
-
-fun updateBook(bookId: Int, bookJson: String) {
-    val url = "http://localhost:3000/books/$bookId"
-    val scope = CoroutineScope(Dispatchers.IO)
-    scope.launch(Dispatchers.IO) {
-        val result = Fuel.post(
-            url = url,
-            headers = mapOf("Content-Type" to "application/json"),
-            body = bookJson
-        )
-
-        withContext(Dispatchers.Main) {
-            when (result.statusCode) {
-                in 200..299 -> {
-                    val data = result.body
-                    // Handle the successful result data here
-                }
-
-                else -> {
-
-                }
-            }
-        }
-    }
-}
-
 @Composable
 fun BookDialog(
     showDialog: Boolean,
     onDismiss: () -> Unit,
     onSave: (String, String, Int) -> Unit,
-    book: Book?
+    book: BookDto?
 ) {
     var title by remember { mutableStateOf(book?.title ?: "") }
     var author by remember { mutableStateOf(book?.author ?: "") }
